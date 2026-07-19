@@ -1,0 +1,204 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: observeall-alerts
+  namespace: monitoring
+  labels:
+    # These labels tell Prometheus Operator to pick up this rule
+    release: kube-prometheus-stack
+    app: kube-prometheus-stack
+spec:
+  groups:
+
+    # ── Order Service Alerts ────────────────────────────────────────
+    - name: order-service
+      interval: 30s
+      rules:
+
+        - alert: OrderServiceHighErrorRate
+          # Why: Fire when >5% of order requests fail for 2 mins
+          # This means real users are getting errors
+          expr: |
+            sum(rate(order_requests_total{status=~"5.."}[2m]))
+            /
+            sum(rate(order_requests_total[2m])) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            service: order-service
+          annotations:
+            summary: "High error rate on Order Service"
+            description: "Error rate is {{ $value | humanizePercentage }} — above 5% threshold for 2 minutes."
+            runbook: "Check order-service logs: kubectl logs -l app=order-service -n observe-app"
+
+        - alert: OrderServiceHighLatency
+          # Why: Fire when p99 latency exceeds 1 second for 2 mins
+          # p99 means 1% of users wait this long — bad UX
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(order_request_duration_seconds_bucket[2m])) by (le)
+            ) > 1.0
+          for: 2m
+          labels:
+            severity: warning
+            service: order-service
+          annotations:
+            summary: "High latency on Order Service"
+            description: "p99 latency is {{ $value | humanizeDuration }} — above 1s threshold."
+            runbook: "Check if inventory-service is slow — it's called by order-service"
+
+        - alert: OrderServiceDown
+          # Why: No requests at all for 3 mins = service is likely down
+          expr: |
+            sum(rate(order_requests_total[3m])) == 0
+          for: 3m
+          labels:
+            severity: critical
+            service: order-service
+          annotations:
+            summary: "Order Service appears to be down"
+            description: "No requests received by order-service for 3 minutes."
+            runbook: "kubectl get pods -n observe-app -l app=order-service"
+
+        - alert: InventoryCallErrorsHigh
+          # Why: Order service failing to reach inventory = orders will fail
+          expr: |
+            sum(rate(order_inventory_call_errors_total[2m])) > 0.1
+          for: 1m
+          labels:
+            severity: warning
+            service: order-service
+          annotations:
+            summary: "Order service failing to call Inventory service"
+            description: "Inventory call errors: {{ $value | humanize }} errors/sec."
+            runbook: "Check inventory-service health: kubectl get pods -n observe-app -l app=inventory-service"
+
+    # ── Inventory Service Alerts ────────────────────────────────────
+    - name: inventory-service
+      interval: 30s
+      rules:
+
+        - alert: ProductLowStock
+          # Why: PROD-004 is at 4 units — fire alert per product
+          # Using label product_id so each product gets its own alert
+          expr: |
+            inventory_stock_level < 10
+          for: 1m
+          labels:
+            severity: warning
+            service: inventory-service
+          annotations:
+            summary: "Low stock for {{ $labels.product_id }}"
+            description: "Stock level for {{ $labels.product_id }} is {{ $value }} units — below 10 unit threshold."
+            runbook: "Restock via: curl -X PUT http://inventory-service:8001/inventory/restock"
+
+        - alert: ProductOutOfStock
+          # Why: Stock = 0 means orders will start failing immediately
+          expr: |
+            inventory_stock_level == 0
+          for: 0m
+          labels:
+            severity: critical
+            service: inventory-service
+          annotations:
+            summary: "{{ $labels.product_id }} is OUT OF STOCK"
+            description: "{{ $labels.product_id }} has 0 units remaining. Orders will fail."
+            runbook: "Immediately restock: curl -X PUT http://inventory-service:8001/inventory/restock"
+
+        - alert: InventoryServiceHighErrorRate
+          expr: |
+            sum(rate(inventory_requests_total{status=~"5.."}[2m]))
+            /
+            sum(rate(inventory_requests_total[2m])) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            service: inventory-service
+          annotations:
+            summary: "High error rate on Inventory Service"
+            description: "Error rate is {{ $value | humanizePercentage }} on inventory-service."
+            runbook: "kubectl logs -l app=inventory-service -n observe-app"
+
+    # ── Notification Service Alerts ─────────────────────────────────
+    - name: notification-service
+      interval: 30s
+      rules:
+
+        - alert: NotificationHighFailureRate
+          # Why: >10% delivery failures = customers not getting order confirmations
+          expr: |
+            sum(rate(notifications_sent_total{status="failed"}[5m]))
+            /
+            sum(rate(notifications_sent_total[5m])) > 0.10
+          for: 2m
+          labels:
+            severity: warning
+            service: notification-service
+          annotations:
+            summary: "High notification failure rate"
+            description: "{{ $value | humanizePercentage }} of notifications are failing."
+            runbook: "kubectl logs -l app=notification-service -n observe-app"
+    # ── Kubernetes Infrastructure Alerts ────────────────────────────
+    - name: kubernetes-infra
+      interval: 30s
+      rules:
+
+        - alert: PodCrashLooping
+          # Why: Pod restarting repeatedly = app is broken, needs attention
+          expr: |
+            rate(kube_pod_container_status_restarts_total[5m]) * 300 > 3
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted more than 3 times in 5 minutes."
+            runbook: "kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}"
+
+        - alert: NodeHighCPU
+          # Why: Node CPU >85% sustained = risk of throttling and slow responses
+          expr: |
+            100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU on node {{ $labels.instance }}"
+            description: "Node {{ $labels.instance }} CPU usage is {{ $value | humanize }}%."
+            runbook: "Check top consumers: kubectl top pods --all-namespaces --sort-by=cpu"
+
+        - alert: NodeHighMemory
+          # Why: Memory >90% = risk of OOMKilled pods
+          expr: |
+            (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High memory on node {{ $labels.instance }}"
+            description: "Node {{ $labels.instance }} memory usage is {{ $value | humanize }}%."
+            runbook: "kubectl top pods --all-namespaces --sort-by=memory"
+
+        - alert: PodNotReady
+          # Why: Pod exists but not serving traffic = silent failure
+          expr: |
+            kube_pod_status_ready{condition="true", namespace="observe-app"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is not ready"
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been not ready for 2 minutes."
+            runbook: "kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}"
+
+        - alert: DiskSpaceLow
+          # Why: Disk filling up = Prometheus TSDB stops writing, logs lost
+          expr: |
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Low disk space on {{ $labels.instance }}"
+            description: "Only {{ $value | humanize }}% disk space remaining on {{ $labels.instance }}."
+            runbook: "Check large files: df -h && du -sh /var/log/*"

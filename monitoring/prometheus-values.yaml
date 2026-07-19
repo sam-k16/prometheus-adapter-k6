@@ -1,0 +1,114 @@
+grafana:
+  enabled: true
+  adminPassword: "observeall@123"
+  service:
+    type: ClusterIP
+  persistence:
+    enabled: true
+    size: 5Gi
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s/grafana"
+      serve_from_sub_path: "true"
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    externalUrl: "http://136.111.60.226/prometheus"
+    routePrefix: "/prometheus"
+    retention: 7d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+    # Scrape ServiceMonitors/PodMonitors from ALL namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    # Scrape our microservices via pod annotations
+    additionalScrapeConfigs:
+      - job_name: "observe-app-services"
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - observe-app
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            target_label: __address__
+            regex: (.+);(.+)
+            replacement: $1:$2
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    externalUrl: "http://136.111.60.226/alertmanager"
+    routePrefix: "/alertmanager"
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+    # Tell Alertmanager to pick up AlertmanagerConfig from monitoring namespace
+    alertmanagerConfigSelector:
+      matchLabels:
+        release: kube-prometheus-stack
+    alertmanagerConfigNamespaceSelector: {}
+
+defaultRules:
+  rules:
+    kubeProxy: false
+    kubeScheduler: false
+    kubeControllerManager: false
+    etcd: false
+    disabled:
+      TargetDown: true      
+      InfoInhibitor: true 
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
+  serviceMonitor:
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_pod_node_name]
+        separator: ;
+        regex: ^(.*)$
+        targetLabel: instance
+        replacement: $1
+        action: replace
+
+kubeStateMetrics:
+  enabled: true
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+coreDns:
+  enabled: false

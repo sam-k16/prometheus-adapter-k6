@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+
+# Secrets — never commit these
+monitoring/slack-secret.yaml
+*secret*.yaml
+
+# Docker
+.dockerignore
+
+# Local files
+*.tar.gz
+*.log
+*.swp
+*.swo

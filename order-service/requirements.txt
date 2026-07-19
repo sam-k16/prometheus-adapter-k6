@@ -1,0 +1,15 @@
+fastapi==0.111.0
+uvicorn==0.29.0
+prometheus-client==0.20.0
+httpx==0.27.0
+pydantic==2.7.1
+structlog==24.1.0
+# OpenTelemetry auto-instrumentation
+# These are installed in the image so opentelemetry-instrument
+# command is available at container startup
+opentelemetry-api==1.24.0
+opentelemetry-sdk==1.24.0
+opentelemetry-distro==0.45b0
+opentelemetry-exporter-otlp-proto-grpc==1.24.0
+opentelemetry-instrumentation-fastapi==0.45b0
+opentelemetry-instrumentation-httpx==0.45b0

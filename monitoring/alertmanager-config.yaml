@@ -1,0 +1,77 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: observeall-alertmanager-config
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  route:
+    # Group alerts by alertname + service so related alerts
+    # come as one Slack message, not 10 separate ones
+    groupBy: ["alertname", "service"]
+    groupWait: 30s       # wait 30s before sending first alert (batch related ones)
+    groupInterval: 5m    
+    repeatInterval: 24h   
+    receiver: slack-notifications
+    routes:
+      # Critical alerts — send immediately with shorter repeat
+      - matchers:
+          - name: severity
+            value: critical
+        receiver: slack-critical
+        groupWait: 10s
+        repeatInterval: 6h
+
+      # Warning alerts — normal flow
+      - matchers:
+          - name: severity
+            value: warning
+        receiver: slack-notifications
+        repeatInterval: 24h
+
+  receivers:
+    # ── Warning channel ───────────────────────────────────────────
+    - name: slack-notifications
+      slackConfigs:
+        - apiURL:
+            name: slack-webhook-secret
+            key: webhookURL
+          channel: "#observeall-alerts"
+          sendResolved: true   # also notify when alert resolves ✅
+          title: |-
+            {{ if eq .Status "firing" }}🔥 FIRING{{ else }}✅ RESOLVED{{ end }} — {{ .CommonLabels.alertname }}
+          text: |-
+            {{ range .Alerts }}
+            *Alert:* {{ .Labels.alertname }}
+            *Severity:* {{ .Labels.severity }}
+            *Service:* {{ .Labels.service | default "infrastructure" }}
+            *Summary:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Runbook:* `{{ .Annotations.runbook }}`
+            *Since:* {{ .StartsAt | since }}
+            {{ end }}
+          color: |-
+            {{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}{{ else }}good{{ end }}
+
+    # ── Critical channel — same webhook, more urgent formatting ───
+    - name: slack-critical
+      slackConfigs:
+        - apiURL:
+            name: slack-webhook-secret
+            key: webhookURL
+          channel: "#observeall-alerts"
+          sendResolved: true
+          title: |-
+            🚨 CRITICAL {{ if eq .Status "firing" }}FIRING{{ else }}✅ RESOLVED{{ end }} — {{ .CommonLabels.alertname }}
+          text: |-
+            {{ range .Alerts }}
+            *🚨 Alert:* {{ .Labels.alertname }}
+            *Severity:* `CRITICAL`
+            *Service:* {{ .Labels.service | default "infrastructure" }}
+            *Summary:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Runbook:* `{{ .Annotations.runbook }}`
+            *Since:* {{ .StartsAt | since }}
+            {{ end }}
+          color: "danger"

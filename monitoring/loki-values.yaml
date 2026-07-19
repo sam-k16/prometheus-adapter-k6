@@ -1,0 +1,80 @@
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  # Disable all caching — not needed for personal project
+  query_range:
+    cache_results: false
+  storage_config:
+    filesystem:
+      directory: /var/loki/chunks
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+  # Explicitly disable cache sidecars
+  extraArgs:
+    - -config.expand-env=true
+
+# Disable ALL optional components
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+patternIngester:
+  replicas: 0
+indexGateway:
+  replicas: 0
+bloomCompactor:
+  replicas: 0
+bloomGateway:
+  replicas: 0
+
+# Disable Promtail — install separately
+promtail:
+  enabled: false
+
+# Disable gateway — not needed
+gateway:
+  enabled: false
