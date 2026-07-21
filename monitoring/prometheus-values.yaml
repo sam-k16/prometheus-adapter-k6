@@ -108,7 +108,7 @@ grafana:
     storageClassName: monitoring-retain
 
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
 
     size: 5Gi
 
