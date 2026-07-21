@@ -73,11 +73,13 @@ STOCK_REDUCTION_FAILURES = Counter(
 # storage/database.
 
 inventory: dict = {
-    "PROD-001": 100,
-    "PROD-002": 50,
-    "PROD-003": 200,
-    "PROD-004": 20,
-    "PROD-005": 150,
+    # High initial stock prevents demo load tests from exhausting
+    # per-pod in-memory inventory when HPA creates new replicas.
+    "PROD-001": 100000,
+    "PROD-002": 50000,
+    "PROD-003": 200000,
+    "PROD-004": 20000,
+    "PROD-005": 150000,
 }
 
 LOW_STOCK_THRESHOLD = 10
