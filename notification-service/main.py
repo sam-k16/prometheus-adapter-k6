@@ -46,6 +46,15 @@ REQUEST_COUNT = Counter(
     ["method", "endpoint", "status"],
 )
 
+# Pre-initialize the metric series used by the HPA.
+# This ensures the metric exists before the first /notify request.
+
+REQUEST_COUNT.labels(
+    method="POST",
+    endpoint="/notify",
+    status="200",
+).inc(0)
+
 REQUEST_LATENCY = Histogram(
     "notification_request_duration_seconds",
     "Request latency for Notification Service",
@@ -173,7 +182,7 @@ async def observability_middleware(
             method=request.method,
             endpoint=endpoint,
             status=str(status),
-        ).inc(0)
+        ).inc()
 
         REQUEST_LATENCY.labels(
             endpoint=endpoint,
