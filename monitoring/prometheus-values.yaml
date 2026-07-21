@@ -1,102 +1,190 @@
-grafana:
-  enabled: true
-  adminPassword: "observeall@123"
-  service:
-    type: ClusterIP
-  persistence:
-    enabled: true
-    size: 5Gi
-  grafana.ini:
-    server:
-      root_url: "%(protocol)s://%(domain)s/grafana"
-      serve_from_sub_path: "true"
+# ============================================================
+# kube-prometheus-stack
+# GKE Observability Project
+# ============================================================
+
+
+# ------------------------------------------------------------
+# Prometheus
+# ------------------------------------------------------------
 
 prometheus:
   enabled: true
+
   prometheusSpec:
-    externalUrl: "http://136.111.60.226/prometheus"
-    routePrefix: "/prometheus"
+
+    # Keep metrics for 7 days.
     retention: 7d
+
+    # Prevent Prometheus from filling the entire 20Gi disk.
+    retentionSize: "15GB"
+
+    # --------------------------------------------------------
+    # Discover ServiceMonitors across namespaces.
+    #
+    # Prometheus runs in: monitoring
+    # Applications run in: order-app
+    # --------------------------------------------------------
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+    serviceMonitorSelector: {}
+
+    serviceMonitorNamespaceSelector: {}
+
+    # Allow PodMonitors later if required.
+
+    podMonitorSelectorNilUsesHelmValues: false
+
+    podMonitorSelector: {}
+
+    podMonitorNamespaceSelector: {}
+
+    # Allow our own PrometheusRule resources later.
+
+    ruleSelectorNilUsesHelmValues: false
+
+    ruleSelector: {}
+
+    ruleNamespaceSelector: {}
+
+    # --------------------------------------------------------
+    # Prometheus resources
+    # --------------------------------------------------------
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+      limits:
+        cpu: "1"
+        memory: 2Gi
+
+    # --------------------------------------------------------
+    # Persistent storage
+    # --------------------------------------------------------
+
     storageSpec:
       volumeClaimTemplate:
         spec:
-          accessModes: ["ReadWriteOnce"]
+
+          storageClassName: monitoring-retain
+
+          accessModes:
+            - ReadWriteOnce
+
           resources:
             requests:
-              storage: 10Gi
-    # Scrape ServiceMonitors/PodMonitors from ALL namespaces
-    serviceMonitorSelectorNilUsesHelmValues: false
-    podMonitorSelectorNilUsesHelmValues: false
-    ruleSelectorNilUsesHelmValues: false
-    # Scrape our microservices via pod annotations
-    additionalScrapeConfigs:
-      - job_name: "observe-app-services"
-        kubernetes_sd_configs:
-          - role: pod
-            namespaces:
-              names:
-                - observe-app
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-            action: keep
-            regex: "true"
-          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
-            action: replace
-            target_label: __address__
-            regex: (.+);(.+)
-            replacement: $1:$2
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-            action: replace
-            target_label: __metrics_path__
-            regex: (.+)
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_pod_label_app]
-            target_label: service
+              storage: 20Gi
+
+
+# ------------------------------------------------------------
+# Grafana
+# ------------------------------------------------------------
+
+grafana:
+  enabled: true
+
+  # Keep Grafana internal for now.
+  # Access using kubectl port-forward.
+  service:
+    type: ClusterIP
+
+  persistence:
+    enabled: true
+
+    type: pvc
+
+    storageClassName: monitoring-retain
+
+    accessModes:
+      - ReadWriteOnce
+
+    size: 5Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+
+# ------------------------------------------------------------
+# Alertmanager
+# ------------------------------------------------------------
 
 alertmanager:
   enabled: true
+
   alertmanagerSpec:
-    externalUrl: "http://136.111.60.226/alertmanager"
-    routePrefix: "/alertmanager"
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+      limits:
+        cpu: 300m
+        memory: 512Mi
+
     storage:
       volumeClaimTemplate:
         spec:
-          accessModes: ["ReadWriteOnce"]
+
+          storageClassName: monitoring-retain
+
+          accessModes:
+            - ReadWriteOnce
+
           resources:
             requests:
               storage: 2Gi
-    # Tell Alertmanager to pick up AlertmanagerConfig from monitoring namespace
-    alertmanagerConfigSelector:
-      matchLabels:
-        release: kube-prometheus-stack
-    alertmanagerConfigNamespaceSelector: {}
 
-defaultRules:
-  rules:
-    kubeProxy: false
-    kubeScheduler: false
-    kubeControllerManager: false
-    etcd: false
-    disabled:
-      TargetDown: true      
-      InfoInhibitor: true 
-  extraArgs:
-    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
-    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
-  serviceMonitor:
-    relabelings:
-      - sourceLabels: [__meta_kubernetes_pod_node_name]
-        separator: ;
-        regex: ^(.*)$
-        targetLabel: instance
-        replacement: $1
-        action: replace
 
-kubeStateMetrics:
+# ------------------------------------------------------------
+# Prometheus Operator
+# ------------------------------------------------------------
+
+prometheusOperator:
   enabled: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+
+# ------------------------------------------------------------
+# kube-state-metrics
+#
+# Provides metrics about Kubernetes objects:
+# Pods, Deployments, replicas, etc.
+# ------------------------------------------------------------
+
+kube-state-metrics:
+  enabled: true
+
+
+# ------------------------------------------------------------
+# Provides node-level:
+# CPU, memory, filesystem, network metrics.
+# ------------------------------------------------------------
+
+prometheus-node-exporter:
+  enabled: true
+
+
+# ------------------------------------------------------------
+# GKE managed control-plane components
+# ------------------------------------------------------------
 
 kubeControllerManager:
   enabled: false
@@ -108,7 +196,4 @@ kubeEtcd:
   enabled: false
 
 kubeProxy:
-  enabled: false
-
-coreDns:
   enabled: false
