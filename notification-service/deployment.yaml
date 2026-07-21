@@ -28,7 +28,7 @@ spec:
 
       containers:
         - name: notification-service
-          image: asia-south1-docker.pkg.dev/iconic-being-499605-m3/order-app/notification-service:v1
+          image: asia-south1-docker.pkg.dev/iconic-being-499605-m3/order-app/notification-service:v2
 
           imagePullPolicy: IfNotPresent
 
