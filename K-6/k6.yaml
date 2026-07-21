@@ -7,6 +7,12 @@ data:
   load-test.js: |
     import http from 'k6/http';
     import { check } from 'k6';
+    import { Counter } from 'k6/metrics';
+
+    const status400 = new Counter('status_400');
+    const status500 = new Counter('status_500');
+    const status503 = new Counter('status_503');
+    const otherErrors = new Counter('other_errors');
 
     export const options = {
       stages: [
@@ -35,6 +41,16 @@ data:
       check(response, {
         'status is 200': (r) => r.status === 200,
       });
+
+      if (response.status === 400) {
+        status400.add(1);
+      } else if (response.status === 500) {
+        status500.add(1);
+      } else if (response.status === 503) {
+        status503.add(1);
+      } else if (response.status !== 200) {
+        otherErrors.add(1);
+      }
     }
 
 ---
