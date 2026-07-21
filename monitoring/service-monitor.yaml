@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: order-app-services
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+
+spec:
+  # Services being monitored are in the order-app namespace.
+  namespaceSelector:
+    matchNames:
+      - order-app
+
+  # Select all three application Services.
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - order-service
+          - inventory-service
+          - notification-service
+
+  endpoints:
+    # "http" must match the port name in each Kubernetes Service.
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

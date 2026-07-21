@@ -19,5 +19,5 @@ USER 10001
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["opentelemetry-instrument", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 #CMD ["opentelemetry-instrument", "--traces_exporter", "otlp", "--metrics_exporter", "none", "--exporter_otlp_endpoint", "http://otel-collector.monitoring:4317", "--service_name", "order-service", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
