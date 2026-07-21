@@ -197,3 +197,6 @@ kubeEtcd:
 
 kubeProxy:
   enabled: false
+
+coreDns:
+  enabled: false
