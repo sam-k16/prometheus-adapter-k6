@@ -1,7 +1,5 @@
-# ── OpenTelemetry Collector ───────────────────────────────────────
-# Why: Receives traces from all services and forwards to Tempo
-# Acts as a central hub — services don't talk to Tempo directly
-# This means you can swap Tempo for Jaeger/Zipkin without changing app code
+# OpenTelemetry Collector — receives OTLP metrics from applications and exposes them to Prometheus.
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,6 +8,7 @@ metadata:
 data:
   config.yaml: |
     receivers:
+      # Receives OTLP telemetry from applications.
       otlp:
         protocols:
           grpc:
@@ -18,27 +17,31 @@ data:
             endpoint: 0.0.0.0:4318
 
     processors:
+      # Prevents Collector memory usage from reaching the container limit.
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 400
+        spike_limit_mib: 100
+
+      # Batches telemetry for more efficient processing.
       batch:
         timeout: 5s
         send_batch_size: 1024
-      memory_limiter:
-        check_interval: 1s
-        limit_mib: 256
 
     exporters:
-      otlp:
-        endpoint: tempo:4317
-        tls:
-          insecure: true
-      logging:
-        loglevel: warn
+      # Exposes application metrics in Prometheus format.
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        resource_to_telemetry_conversion:
+          enabled: true
 
     service:
       pipelines:
-        traces:
+        # OTLP metrics → processors → Prometheus exporter.
+        metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [otlp, logging]
+          exporters: [prometheus]
 
 ---
 apiVersion: apps/v1
@@ -50,35 +53,79 @@ metadata:
     app: otel-collector
 spec:
   replicas: 1
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
   selector:
     matchLabels:
       app: otel-collector
+
   template:
     metadata:
       labels:
         app: otel-collector
+
     spec:
+      terminationGracePeriodSeconds: 30
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+
       containers:
         - name: otel-collector
+          # Pin to a tested version; do not use latest.
           image: otel/opentelemetry-collector-contrib:0.96.0
-          args: ["--config=/conf/config.yaml"]
+          imagePullPolicy: IfNotPresent
+
+          args:
+            - "--config=/conf/config.yaml"
+
           ports:
-            - containerPort: 4317   # OTLP gRPC
-              name: otlp-grpc
-            - containerPort: 4318   # OTLP HTTP
-              name: otlp-http
-            - containerPort: 8888   # Prometheus metrics
-              name: metrics
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+
+            # Collector's own operational metrics.
+            - name: telemetry
+              containerPort: 8888
+              protocol: TCP
+
+            # Application metrics exposed for Prometheus.
+            - name: app-metrics
+              containerPort: 8889
+              protocol: TCP
+
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: 100m
+              memory: 128Mi
             limits:
-              cpu: "250m"
-              memory: "256Mi"
+              cpu: 500m
+              memory: 512Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
           volumeMounts:
             - name: config
               mountPath: /conf
+              readOnly: true
+
       volumes:
         - name: config
           configMap:
@@ -93,16 +140,32 @@ metadata:
   labels:
     app: otel-collector
 spec:
+  type: ClusterIP
+
   selector:
     app: otel-collector
+
   ports:
+    # OTLP gRPC endpoint used by applications.
     - name: otlp-grpc
       port: 4317
-      targetPort: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+
+    # OTLP HTTP endpoint used by applications.
     - name: otlp-http
       port: 4318
-      targetPort: 4318
-    - name: metrics
+      targetPort: otlp-http
+      protocol: TCP
+
+    # Collector's own operational metrics.
+    - name: telemetry
       port: 8888
-      targetPort: 8888
-  type: ClusterIP
+      targetPort: telemetry
+      protocol: TCP
+
+    # Application metrics scraped by Prometheus.
+    - name: app-metrics
+      port: 8889
+      targetPort: app-metrics
+      protocol: TCP
