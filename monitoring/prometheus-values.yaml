@@ -11,6 +11,9 @@
 prometheus:
   enabled: true
 
+  service:
+    type: LoadBalancer
+
   prometheusSpec:
 
     # Keep metrics for 7 days.
