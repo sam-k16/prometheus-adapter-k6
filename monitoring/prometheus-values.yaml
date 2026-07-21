@@ -85,6 +85,9 @@ prometheus:
 
 grafana:
   enabled: true
+  
+  deploymentStrategy:
+    type: Recreate
 
   # Keep Grafana internal for now.
   # Access using kubectl port-forward.
