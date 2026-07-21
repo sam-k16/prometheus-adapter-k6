@@ -173,7 +173,7 @@ async def observability_middleware(
             method=request.method,
             endpoint=endpoint,
             status=str(status),
-        ).inc()
+        ).inc(0)
 
         REQUEST_LATENCY.labels(
             endpoint=endpoint,
