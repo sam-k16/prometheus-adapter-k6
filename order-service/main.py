@@ -62,6 +62,12 @@ REQUEST_COUNT = Counter(
     ["method", "endpoint", "status"],
 )
 
+REQUEST_COUNT.labels(
+    method="POST",
+    endpoint="/orders",
+    status="200",
+).inc(0)
+
 REQUEST_LATENCY = Histogram(
     "order_request_duration_seconds",
     "Request latency for Order Service",
@@ -255,7 +261,7 @@ async def observability_middleware(
             method=request.method,
             endpoint=endpoint,
             status=str(status),
-        ).inc(0)
+        ).inc()
 
         REQUEST_LATENCY.labels(
             endpoint=endpoint,

@@ -28,7 +28,7 @@ spec:
 
       containers:
         - name: order-service
-          image: asia-south1-docker.pkg.dev/iconic-being-499605-m3/order-app/order-service:v3
+          image: asia-south1-docker.pkg.dev/iconic-being-499605-m3/order-app/order-service:v4
 
           imagePullPolicy: IfNotPresent
 
