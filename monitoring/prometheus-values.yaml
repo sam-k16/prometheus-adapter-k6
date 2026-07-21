@@ -85,9 +85,12 @@ prometheus:
 
 grafana:
   enabled: true
-  
-  deploymentStrategy:
-    type: Recreate
+
+  strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
 
   # Keep Grafana internal for now.
   # Access using kubectl port-forward.
@@ -102,7 +105,7 @@ grafana:
     storageClassName: monitoring-retain
 
     accessModes:
-      - ReadWriteOnce
+      - ReadWriteMany
 
     size: 5Gi
 
