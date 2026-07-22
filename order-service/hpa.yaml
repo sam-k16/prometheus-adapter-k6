@@ -21,4 +21,4 @@ spec:
         target:
           type: AverageValue
           # Temporary threshold; final value determined with k6.
-          averageValue: "1"
+          averageValue: "30"
