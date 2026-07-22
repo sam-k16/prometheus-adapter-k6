@@ -7,20 +7,31 @@ data:
   load-test.js: |
     import http from 'k6/http';
     import { check } from 'k6';
-    import { Counter } from 'k6/metrics';
-
-    const status400 = new Counter('status_400');
-    const status500 = new Counter('status_500');
-    const status503 = new Counter('status_503');
-    const otherErrors = new Counter('other_errors');
 
     export const options = {
-      stages: [
-        { duration: '1m', target: 5 },
-        { duration: '2m', target: 10 },
-        { duration: '2m', target: 10 },
-        { duration: '1m', target: 0 },
-      ],
+      scenarios: {
+        capacity_test: {
+          executor: 'ramping-arrival-rate',
+
+          startRate: 5,
+          timeUnit: '1s',
+
+          preAllocatedVUs: 50,
+          maxVUs: 200,
+
+          stages: [
+            { target: 5, duration: '2m' },
+            { target: 10, duration: '2m' },
+            { target: 20, duration: '2m' },
+            { target: 30, duration: '2m' },
+            { target: 40, duration: '2m' },
+          ],
+        },
+      },
+
+      thresholds: {
+        http_req_failed: ['rate<1.0'],
+      },
     };
 
     export default function () {
@@ -29,7 +40,7 @@ data:
         JSON.stringify({
           product_id: 'PROD-001',
           quantity: 1,
-          customer_id: 'k6-load-test',
+          customer_id: 'k6-capacity-test',
         }),
         {
           headers: {
@@ -41,16 +52,6 @@ data:
       check(response, {
         'status is 200': (r) => r.status === 200,
       });
-
-      if (response.status === 400) {
-        status400.add(1);
-      } else if (response.status === 500) {
-        status500.add(1);
-      } else if (response.status === 503) {
-        status503.add(1);
-      } else if (response.status !== 200) {
-        otherErrors.add(1);
-      }
     }
 
 ---
@@ -61,7 +62,6 @@ metadata:
   namespace: order-app
 spec:
   backoffLimit: 0
-
   template:
     spec:
       restartPolicy: Never
