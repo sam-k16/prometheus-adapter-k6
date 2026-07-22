@@ -1,21 +1,21 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: notification-service
+  name: inventory-service
   namespace: order-app
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: notification-service
+    name: inventory-service
   minReplicas: 1
   maxReplicas: 5
   metrics:
     - type: Pods
       pods:
         metric:
-          name: notification_requests_per_second
+          name: inventory_requests_per_second
         target:
           type: AverageValue
           # Temporary test threshold; tune with k6 later.
-          averageValue: "90"
+          averageValue: "30"
