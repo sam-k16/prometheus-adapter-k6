@@ -25,6 +25,7 @@ data:
             { target: 20, duration: '2m' },
             { target: 30, duration: '2m' },
             { target: 40, duration: '2m' },
+            { target: 60, duration: '5m' },
           ],
         },
       },
