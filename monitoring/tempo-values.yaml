@@ -1,19 +1,29 @@
+fullnameOverride: tempo
+
 deploymentMode: SingleBinary
+
+singleBinary:
+  replicas: 1
 
 tempo:
   reportingEnabled: false
+  retention: 24h
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
 
   receivers:
     otlp:
       protocols:
         grpc:
+          endpoint: "0.0.0.0:4317"
         http:
-
-server:
-  http_listen_port: 3200
-
-singleBinary:
-  replicas: 1
+          endpoint: "0.0.0.0:4318"
 
 storage:
   trace:
@@ -25,10 +35,14 @@ storage:
 
 persistence:
   enabled: true
-  size: 10Gi
+  storageClassName: standard-rwo
+  size: 5Gi
 
 service:
   type: ClusterIP
+
+serviceMonitor:
+  enabled: true
 
 lokiSearch:
   enabled: true
