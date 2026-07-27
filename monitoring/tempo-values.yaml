@@ -1,8 +1,19 @@
+deploymentMode: SingleBinary
+
 tempo:
   reportingEnabled: false
 
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+        http:
+
 server:
   http_listen_port: 3200
+
+singleBinary:
+  replicas: 1
 
 storage:
   trace:
@@ -12,21 +23,13 @@ storage:
     wal:
       path: /var/tempo/wal
 
-# Accept traces from OpenTelemetry Collector
-receivers:
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
-
-# Link traces back to logs via trace_id
-# This enables "Logs for this span" button in Grafana
-lokiSearch:
-  enabled: true
-  datasourceUid: "loki"
-
 persistence:
   enabled: true
   size: 10Gi
+
+service:
+  type: ClusterIP
+
+lokiSearch:
+  enabled: true
+  datasourceUid: loki
