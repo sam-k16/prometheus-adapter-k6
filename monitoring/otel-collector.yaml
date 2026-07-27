@@ -1,171 +1,87 @@
-# OpenTelemetry Collector — receives OTLP metrics from applications and exposes them to Prometheus.
+fullnameOverride: otel-collector
 
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: otel-collector-config
-  namespace: monitoring
-data:
-  config.yaml: |
-    receivers:
-      # Receives OTLP telemetry from applications.
-      otlp:
-        protocols:
-          grpc:
-            endpoint: 0.0.0.0:4317
-          http:
-            endpoint: 0.0.0.0:4318
+mode: deployment
+replicaCount: 1
 
-    processors:
-      # Prevents Collector memory usage from reaching the container limit.
-      memory_limiter:
-        check_interval: 5s
-        limit_mib: 400
-        spike_limit_mib: 100
+image:
+  repository: otel/opentelemetry-collector-contrib
 
-      # Batches telemetry for more efficient processing.
-      batch:
-        timeout: 5s
-        send_batch_size: 1024
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
 
-    exporters:
-      # Exposes application metrics in Prometheus format.
-      prometheus:
-        endpoint: 0.0.0.0:8889
-        resource_to_telemetry_conversion:
-          enabled: true
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
 
-    service:
-      pipelines:
-        # OTLP metrics → processors → Prometheus exporter.
-        metrics:
-          receivers: [otlp]
-          processors: [memory_limiter, batch]
-          exporters: [prometheus]
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_mib: 200
+      spike_limit_mib: 50
 
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: otel-collector
-  namespace: monitoring
-  labels:
-    app: otel-collector
-spec:
-  replicas: 1
+    batch:
+      timeout: 5s
+      send_batch_size: 512
 
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+  exporters:
+    debug:
+      verbosity: detailed
 
-  selector:
-    matchLabels:
-      app: otel-collector
+    otlp/tempo:
+      endpoint: tempo.monitoring.svc.cluster.local:4317
+      tls:
+        insecure: true
 
-  template:
-    metadata:
-      labels:
-        app: otel-collector
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
 
-    spec:
-      terminationGracePeriodSeconds: 30
+  service:
+    extensions:
+      - health_check
 
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        fsGroup: 10001
+    pipelines:
+      traces:
+        receivers:
+          - otlp
+        processors:
+          - memory_limiter
+          - batch
+        exporters:
+          - debug
+          - otlp/tempo
 
-      containers:
-        - name: otel-collector
-          # Pin to a tested version; do not use latest.
-          image: otel/opentelemetry-collector-contrib:0.96.0
-          imagePullPolicy: IfNotPresent
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
 
-          args:
-            - "--config=/conf/config.yaml"
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
 
-          ports:
-            - name: otlp-grpc
-              containerPort: 4317
-              protocol: TCP
+  jaeger-compact:
+    enabled: false
 
-            - name: otlp-http
-              containerPort: 4318
-              protocol: TCP
+  jaeger-thrift:
+    enabled: false
 
-            # Collector's own operational metrics.
-            - name: telemetry
-              containerPort: 8888
-              protocol: TCP
+  jaeger-grpc:
+    enabled: false
 
-            # Application metrics exposed for Prometheus.
-            - name: app-metrics
-              containerPort: 8889
-              protocol: TCP
-
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-
-          volumeMounts:
-            - name: config
-              mountPath: /conf
-              readOnly: true
-
-      volumes:
-        - name: config
-          configMap:
-            name: otel-collector-config
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: otel-collector
-  namespace: monitoring
-  labels:
-    app: otel-collector
-spec:
-  type: ClusterIP
-
-  selector:
-    app: otel-collector
-
-  ports:
-    # OTLP gRPC endpoint used by applications.
-    - name: otlp-grpc
-      port: 4317
-      targetPort: otlp-grpc
-      protocol: TCP
-
-    # OTLP HTTP endpoint used by applications.
-    - name: otlp-http
-      port: 4318
-      targetPort: otlp-http
-      protocol: TCP
-
-    # Collector's own operational metrics.
-    - name: telemetry
-      port: 8888
-      targetPort: telemetry
-      protocol: TCP
-
-    # Application metrics scraped by Prometheus.
-    - name: app-metrics
-      port: 8889
-      targetPort: app-metrics
-      protocol: TCP
+  zipkin:
+    enabled: false

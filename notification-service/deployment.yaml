@@ -36,6 +36,31 @@ spec:
             - name: http
               containerPort: 8002
 
+          env:
+           - name: OTEL_SERVICE_NAME
+             value: notification-service
+
+           - name: OTEL_EXPORTER_OTLP_ENDPOINT
+             value: http://otel-collector:4317
+
+           - name: OTEL_EXPORTER_OTLP_PROTOCOL
+             value: grpc
+
+           - name: OTEL_RESOURCE_ATTRIBUTES
+             value: service.namespace=order-app,service.version=1.0
+
+           - name: OTEL_PROPAGATORS
+             value: tracecontext,baggage
+
+           - name: OTEL_TRACES_EXPORTER
+             value: otlp
+
+           - name: OTEL_METRICS_EXPORTER
+             value: none
+
+           - name: OTEL_LOGS_EXPORTER
+             value: none
+
           resources:
             requests:
               cpu: 100m

@@ -36,12 +36,39 @@ spec:
             - name: http
               containerPort: 8000
 
+
           env:
             - name: INVENTORY_SERVICE_URL
               value: "http://inventory-service:8001"
 
             - name: NOTIFICATION_SERVICE_URL
               value: "http://notification-service:8002"
+
+            - name: OTEL_SERVICE_NAME
+              value: "order-service"
+
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "grpc"
+
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=order-app,service.version=1.0"
+
+            - name: OTEL_PROPAGATORS
+              value: "tracecontext,baggage"
+
+            - name: OTEL_TRACES_EXPORTER
+              value: "otlp"
+
+            # Keep Prometheus for metrics
+            - name: OTEL_METRICS_EXPORTER
+              value: "none"
+
+            # We'll enable this with Loki later
+            - name: OTEL_LOGS_EXPORTER
+              value: "none"
 
           resources:
             requests:
