@@ -42,3 +42,47 @@ singleBinary:
     limits:
       cpu: 500m
       memory: 512Mi
+
+# Disable SimpleScalable mode
+backend:
+  replicas: 0
+
+read:
+  replicas: 0
+
+write:
+  replicas: 0
+
+# Disable gateway
+gateway:
+  enabled: false
+
+# Disable MinIO (filesystem storage)
+minio:
+  enabled: false
+
+# Disable caches
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
+
+# Disable canary
+lokiCanary:
+  enabled: false
+
+# Disable test pod
+test:
+  enabled: false
+
+# We are using OpenTelemetry Collector instead
+promtail:
+  enabled: false
+
+# Enable ServiceMonitor for Prometheus
+monitoring:
+  serviceMonitor:
+    enabled: true
+  dashboards:
+    enabled: true
