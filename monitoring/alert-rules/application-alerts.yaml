@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: application-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: application-alerts
+      rules:
+
+        - alert: OrderServiceDown
+          expr: up{job="order-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: order-service
+            namespace: monitoring
+          annotations:
+            summary: Order service is down
+            description: Order service has not responded for 2 minutes.
+
+        - alert: InventoryServiceDown
+          expr: up{job="inventory-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: inventory-service
+            namespace: monitoring
+          annotations:
+            summary: Inventory service is down
+            description: Inventory service has not responded for 2 minutes.
+
+        - alert: NotificationServiceDown
+          expr: up{job="notification-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: notification-service
+            namespace: monitoring
+          annotations:
+            summary: Notification service is down
+            description: Notification service has not responded for 2 minutes.

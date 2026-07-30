@@ -1,0 +1,33 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: platform-alerts
+      rules:
+
+        - alert: PrometheusDown
+          expr: up{job="kube-prometheus-stack-prometheus"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: prometheus
+            namespace: monitoring
+          annotations:
+            summary: Prometheus is down
+            description: Prometheus has not been reachable for 2 minutes.
+
+        - alert: AlertmanagerDown
+          expr: up{job="kube-prometheus-stack-alertmanager"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: alertmanager
+            namespace: monitoring
+          annotations:
+            summary: Alertmanager is down
+            description: Alertmanager has not been reachable for 2 minutes.

@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: observability-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: observability-alerts
+      rules:
+
+        - alert: PrometheusTargetDown
+          expr: up == 0
+          for: 2m
+          labels:
+            severity: warning
+            service: observability
+            namespace: monitoring
+          annotations:
+            summary: Prometheus target down
+            description: One or more Prometheus scrape targets are unreachable.
