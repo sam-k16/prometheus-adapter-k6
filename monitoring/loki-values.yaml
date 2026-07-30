@@ -24,6 +24,13 @@ loki:
     retention_period: 168h
     allow_structured_metadata: true
 
+  distributor:
+    otlp:
+      default_resource_attributes_as_index_labels:
+        - service.name
+        - service.namespace
+        - service.instance.id
+
   compactor:
     retention_enabled: true
     delete_request_store: filesystem
