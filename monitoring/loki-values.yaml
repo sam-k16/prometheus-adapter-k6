@@ -26,15 +26,11 @@ loki:
 
   compactor:
     retention_enabled: true
-    delete_request_store: filesystem
+    
 
 singleBinary:
   replicas: 1
 
-sidecar:
-  rules:
-    enabled: false
-    
   persistence:
     enabled: true
     storageClass: standard-rwo
