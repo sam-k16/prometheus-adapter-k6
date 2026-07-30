@@ -14,6 +14,24 @@ resources:
     cpu: 200m
     memory: 256Mi
 
+extraVolumes:
+  - name: varlogpods
+    hostPath:
+      path: /var/log/pods
+
+  - name: varlogcontainers
+    hostPath:
+      path: /var/log/containers
+
+extraVolumeMounts:
+  - name: varlogpods
+    mountPath: /var/log/pods
+    readOnly: true
+
+  - name: varlogcontainers
+    mountPath: /var/log/containers
+    readOnly: true
+
 config:
   receivers:
     otlp:
@@ -22,6 +40,13 @@ config:
           endpoint: 0.0.0.0:4317
         http:
           endpoint: 0.0.0.0:4318
+
+    filelog:
+      include:
+        - /var/log/pods/*/*/*.log
+      start_at: beginning
+      include_file_path: true
+      include_file_name: false
 
   processors:
     memory_limiter:
@@ -42,6 +67,9 @@ config:
       tls:
         insecure: true
 
+    otlphttp/loki:
+      endpoint: http://loki.monitoring.svc.cluster.local:3100/otlp
+
   extensions:
     health_check:
       endpoint: 0.0.0.0:13133
@@ -60,6 +88,16 @@ config:
         exporters:
           - debug
           - otlp/tempo
+
+      logs:
+        receivers:
+          - filelog
+        processors:
+          - memory_limiter
+          - batch
+        exporters:
+          - debug
+          - otlphttp/loki
 
 ports:
   otlp:
