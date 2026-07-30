@@ -31,6 +31,10 @@ loki:
 singleBinary:
   replicas: 1
 
+sidecar:
+  rules:
+    enabled: false
+    
   persistence:
     enabled: true
     storageClass: standard-rwo
