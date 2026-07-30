@@ -49,7 +49,7 @@ config:
         - /var/log/pods/monitoring_otel-collector-*/*/*.log
 
       start_at: end
-
+      include_file_path: true
       operators:
         - type: container
     #  include_file_path: true
