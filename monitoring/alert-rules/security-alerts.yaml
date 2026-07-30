@@ -1,0 +1,113 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: security-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+
+spec:
+  groups:
+    - name: security-alerts
+      rules:
+
+        # ----------------------------------------------------------
+        # Excessive 404 Responses
+        # ----------------------------------------------------------
+        - alert: Excessive404Responses
+          expr: |
+            (
+              sum(
+                rate(order_requests_total{status="404"}[5m])
+              ) +
+              sum(
+                rate(inventory_requests_total{status="404"}[5m])
+              ) +
+              sum(
+                rate(notification_requests_total{status="404"}[5m])
+              )
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+            service: security
+            namespace: monitoring
+          annotations:
+            summary: "High number of HTTP 404 responses"
+            description: "Possible scanning activity or requests to invalid endpoints."
+
+        # ----------------------------------------------------------
+        # High Server Error Rate (5xx)
+        # ----------------------------------------------------------
+        - alert: HighServerErrorRate
+          expr: |
+            (
+              (
+                sum(rate(order_requests_total{status=~"5.."}[5m])) +
+                sum(rate(inventory_requests_total{status=~"5.."}[5m])) +
+                sum(rate(notification_requests_total{status=~"5.."}[5m]))
+              )
+              /
+              (
+                sum(rate(order_requests_total[5m])) +
+                sum(rate(inventory_requests_total[5m])) +
+                sum(rate(notification_requests_total[5m]))
+              )
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            service: security
+            namespace: monitoring
+          annotations:
+            summary: "High HTTP 5xx error rate"
+            description: "More than 5% of requests are failing with server errors."
+
+        # ----------------------------------------------------------
+        # Inventory Service Communication Failures
+        # ----------------------------------------------------------
+        - alert: InventoryCallFailures
+          expr: |
+            increase(order_inventory_call_errors_total[5m]) > 5
+          for: 2m
+          labels:
+            severity: critical
+            service: order-service
+            namespace: monitoring
+          annotations:
+            summary: "Inventory service communication failures"
+            description: "Order Service is failing to communicate with Inventory Service."
+
+        # ----------------------------------------------------------
+        # Notification Delivery Failures
+        # ----------------------------------------------------------
+        - alert: NotificationDeliveryFailures
+          expr: |
+            increase(notification_failed_deliveries_total[5m]) > 5
+          for: 2m
+          labels:
+            severity: warning
+            service: notification-service
+            namespace: monitoring
+          annotations:
+            summary: "Notification delivery failures"
+            description: "Notification Service has experienced multiple delivery failures."
+
+        # ----------------------------------------------------------
+        # High Request Rate
+        # ----------------------------------------------------------
+        - alert: HighRequestRate
+          expr: |
+            (
+              sum(rate(order_requests_total[5m])) +
+              sum(rate(inventory_requests_total[5m])) +
+              sum(rate(notification_requests_total[5m]))
+            ) > 100
+          for: 5m
+          labels:
+            severity: warning
+            service: security
+            namespace: monitoring
+          annotations:
+            summary: "High application request rate"
+            description: "Traffic is significantly higher than expected. Verify expected load."
