@@ -44,9 +44,16 @@ config:
     filelog:
       include:
         - /var/log/pods/*/*/*.log
-      start_at: beginning
-      include_file_path: true
-      include_file_name: false
+
+      exclude:
+        - /var/log/pods/monitoring_otel-collector-*/*/*.log
+
+      start_at: end
+
+      operators:
+        - type: container
+    #  include_file_path: true
+     # include_file_name: false
 
   processors:
     memory_limiter:
@@ -96,7 +103,6 @@ config:
           - memory_limiter
           - batch
         exporters:
-          - debug
           - otlphttp/loki
 
 ports:
